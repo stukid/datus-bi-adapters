@@ -56,7 +56,7 @@ class TestGrafanaDashboards:
         try:
             info = grafana_adaptor.get_dashboard_info(created.id)
             assert info is not None
-            assert info.name is not None
+            assert info.name == f"{_DASHBOARD_TITLE} GetTest"
         finally:
             grafana_adaptor.delete_dashboard(created.id)
 
@@ -114,8 +114,75 @@ class TestGrafanaCharts:
             grafana_adaptor.delete_dashboard(dashboard.id)
 
 
+class TestGrafanaGetChart:
+    def test_get_chart_by_id(self, grafana_adaptor):
+        """Create a dashboard with a chart, then retrieve the chart by id."""
+        dash_spec = DashboardSpec(title=f"{_DASHBOARD_TITLE} GetChart")
+        dashboard = grafana_adaptor.create_dashboard(dash_spec)
+        try:
+            chart_spec = ChartSpec(
+                chart_type="bar",
+                title="[Datus-Test] Bar Panel",
+                description="A test bar panel",
+            )
+            created = grafana_adaptor.create_chart(chart_spec, dashboard_id=dashboard.id)
+
+            chart = grafana_adaptor.get_chart(created.id, dashboard_id=dashboard.id)
+            assert chart is not None
+            assert str(chart.id) == str(created.id)
+            assert chart.name == "[Datus-Test] Bar Panel"
+        finally:
+            grafana_adaptor.delete_dashboard(dashboard.id)
+
+    def test_get_chart_not_found(self, grafana_adaptor):
+        """get_chart returns None for a non-existent panel id."""
+        dash_spec = DashboardSpec(title=f"{_DASHBOARD_TITLE} GetChartMissing")
+        dashboard = grafana_adaptor.create_dashboard(dash_spec)
+        try:
+            chart = grafana_adaptor.get_chart(99999, dashboard_id=dashboard.id)
+            assert chart is None
+        finally:
+            grafana_adaptor.delete_dashboard(dashboard.id)
+
+    def test_get_chart_without_dashboard_id_raises(self, grafana_adaptor):
+        """get_chart raises DatusBiException when dashboard_id is missing."""
+        with pytest.raises(DatusBiException, match="dashboard_id"):
+            grafana_adaptor.get_chart(1)
+
+    def test_update_chart_raises(self, grafana_adaptor):
+        """Grafana update_chart always raises because it needs dashboard context."""
+        spec = ChartSpec(chart_type="bar", title="Test")
+        with pytest.raises(DatusBiException, match="dashboard_id"):
+            grafana_adaptor.update_chart(1, spec)
+
+    def test_delete_chart_raises(self, grafana_adaptor):
+        """Grafana delete_chart always raises because it needs dashboard context."""
+        with pytest.raises(DatusBiException, match="dashboard_id"):
+            grafana_adaptor.delete_chart(1)
+
+
 class TestGrafanaDatasets:
     def test_list_datasets(self, grafana_adaptor):
         # list_datasets returns Grafana datasources
         datasets = grafana_adaptor.list_datasets(dashboard_id="")
         assert isinstance(datasets, list)
+        # Grafana should have at least one built-in datasource
+        for ds in datasets:
+            assert ds.id is not None
+            assert ds.name is not None
+
+    def test_get_dataset(self, grafana_adaptor):
+        """Get a datasource by id — pick the first from list_datasets."""
+        datasets = grafana_adaptor.list_datasets(dashboard_id="")
+        if not datasets:
+            pytest.skip("No datasources configured in Grafana")
+        first = datasets[0]
+        ds = grafana_adaptor.get_dataset(first.id)
+        assert ds is not None
+        assert ds.id == first.id
+        assert ds.name == first.name
+
+    def test_get_dataset_not_found(self, grafana_adaptor):
+        """get_dataset returns None for a non-existent datasource id."""
+        ds = grafana_adaptor.get_dataset(999999)
+        assert ds is None

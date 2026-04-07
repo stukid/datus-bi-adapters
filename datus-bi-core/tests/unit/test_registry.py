@@ -41,6 +41,75 @@ def test_get_capabilities():
         )
         caps = BIAdaptorRegistry.get_capabilities("mock2")
         assert "dashboard_write" in caps
+        assert "chart_write" in caps
+        assert len(caps) == 2
+    finally:
+        BIAdaptorRegistry._adaptors = orig_adaptors
+        BIAdaptorRegistry._metadata = orig_metadata
+        BIAdaptorRegistry._initialized = orig_init
+
+
+def test_list_adaptors():
+    orig_adaptors = BIAdaptorRegistry._adaptors.copy()
+    orig_metadata = BIAdaptorRegistry._metadata.copy()
+    orig_init = BIAdaptorRegistry._initialized
+    try:
+        BIAdaptorRegistry._initialized = True
+        BIAdaptorRegistry._adaptors = {}
+        BIAdaptorRegistry._metadata = {}
+        BIAdaptorRegistry.register(
+            "mock_list", MockAdaptor, auth_type=AuthType.LOGIN
+        )
+        all_adaptors = BIAdaptorRegistry.list_adaptors()
+        assert "mock_list" in all_adaptors
+        assert all_adaptors["mock_list"] is MockAdaptor
+    finally:
+        BIAdaptorRegistry._adaptors = orig_adaptors
+        BIAdaptorRegistry._metadata = orig_metadata
+        BIAdaptorRegistry._initialized = orig_init
+
+
+def test_is_registered():
+    orig_adaptors = BIAdaptorRegistry._adaptors.copy()
+    orig_metadata = BIAdaptorRegistry._metadata.copy()
+    orig_init = BIAdaptorRegistry._initialized
+    try:
+        BIAdaptorRegistry._initialized = True
+        BIAdaptorRegistry._adaptors = {}
+        BIAdaptorRegistry._metadata = {}
+        BIAdaptorRegistry.register(
+            "mock_check", MockAdaptor, auth_type=AuthType.LOGIN
+        )
+        assert BIAdaptorRegistry.is_registered("mock_check") is True
+        assert BIAdaptorRegistry.is_registered("nonexistent") is False
+    finally:
+        BIAdaptorRegistry._adaptors = orig_adaptors
+        BIAdaptorRegistry._metadata = orig_metadata
+        BIAdaptorRegistry._initialized = orig_init
+
+
+def test_get_metadata():
+    orig_adaptors = BIAdaptorRegistry._adaptors.copy()
+    orig_metadata = BIAdaptorRegistry._metadata.copy()
+    orig_init = BIAdaptorRegistry._initialized
+    try:
+        BIAdaptorRegistry._initialized = True
+        BIAdaptorRegistry._adaptors = {}
+        BIAdaptorRegistry._metadata = {}
+        BIAdaptorRegistry.register(
+            "mock_meta",
+            MockAdaptor,
+            auth_type=AuthType.API_KEY,
+            display_name="Mock Meta",
+            capabilities={"read"},
+        )
+        meta = BIAdaptorRegistry.get_metadata("mock_meta")
+        assert meta is not None
+        assert meta.platform == "mock_meta"
+        assert meta.auth_type == AuthType.API_KEY
+        assert meta.display_name == "Mock Meta"
+        assert meta.capabilities == {"read"}
+        assert BIAdaptorRegistry.get_metadata("nonexistent") is None
     finally:
         BIAdaptorRegistry._adaptors = orig_adaptors
         BIAdaptorRegistry._metadata = orig_metadata

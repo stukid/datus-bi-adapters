@@ -111,3 +111,76 @@ class TestGrafanaWriteOperations:
         with patch.object(adaptor, "_request_json", side_effect=Exception("not found")):
             result = adaptor.delete_dashboard("abc123")
         assert result is False
+
+
+class TestGrafanaErrorPaths:
+    def test_get_chart_without_dashboard_id_raises(self):
+        adaptor = make_adaptor()
+        with pytest.raises(DatusBiException, match="dashboard_id"):
+            adaptor.get_chart("panel1")
+
+    def test_update_chart_raises(self):
+        adaptor = make_adaptor()
+        spec = ChartSpec(chart_type="bar", title="Test")
+        with pytest.raises(DatusBiException, match="dashboard_id"):
+            adaptor.update_chart("panel1", spec)
+
+    def test_delete_chart_raises(self):
+        adaptor = make_adaptor()
+        with pytest.raises(DatusBiException, match="dashboard_id"):
+            adaptor.delete_chart("panel1")
+
+    def test_get_chart_found(self):
+        adaptor = make_adaptor()
+        mock_data = {
+            "dashboard": {
+                "panels": [
+                    {"id": 1, "title": "Panel 1", "type": "timeseries"},
+                    {"id": 2, "title": "Panel 2", "type": "barchart"},
+                ]
+            },
+        }
+        with patch.object(adaptor, "_request_json", return_value=mock_data):
+            chart = adaptor.get_chart(1, dashboard_id="dash1")
+        assert chart is not None
+        assert chart.id == 1
+        assert chart.name == "Panel 1"
+
+    def test_get_chart_not_found(self):
+        adaptor = make_adaptor()
+        mock_data = {
+            "dashboard": {
+                "panels": [{"id": 1, "title": "Panel 1", "type": "timeseries"}]
+            },
+        }
+        with patch.object(adaptor, "_request_json", return_value=mock_data):
+            chart = adaptor.get_chart(999, dashboard_id="dash1")
+        assert chart is None
+
+    def test_list_datasets(self):
+        adaptor = make_adaptor()
+        mock_data = [
+            {"id": 1, "name": "PostgreSQL", "type": "postgres", "typeLogoUrl": "url"},
+            {"id": 2, "name": "MySQL", "type": "mysql", "typeLogoUrl": "url2"},
+        ]
+        with patch.object(adaptor, "_request_json", return_value=mock_data):
+            datasets = adaptor.list_datasets(dashboard_id="any")
+        assert len(datasets) == 2
+        assert datasets[0].id == 1
+        assert datasets[0].name == "PostgreSQL"
+        assert datasets[1].id == 2
+
+    def test_get_dataset(self):
+        adaptor = make_adaptor()
+        mock_data = {"id": 1, "name": "PostgreSQL", "type": "postgres"}
+        with patch.object(adaptor, "_request_json", return_value=mock_data):
+            ds = adaptor.get_dataset(1)
+        assert ds is not None
+        assert ds.id == 1
+        assert ds.name == "PostgreSQL"
+
+    def test_get_dataset_failure_returns_none(self):
+        adaptor = make_adaptor()
+        with patch.object(adaptor, "_request_json", side_effect=Exception("fail")):
+            ds = adaptor.get_dataset(999)
+        assert ds is None

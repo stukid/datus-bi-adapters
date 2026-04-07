@@ -45,6 +45,7 @@ class TestSupersetWriteOperations:
             )
             result = adaptor.create_chart(spec)
         assert result.id == 5
+        assert result.name == "My Chart"
 
     def test_build_form_data(self):
         adaptor = make_adaptor()
@@ -187,3 +188,41 @@ class TestSupersetWriteOperations:
         adaptor = make_adaptor()
         result = adaptor.parse_dashboard_id("42")
         assert result == 42
+
+
+class TestSupersetErrorPaths:
+    def test_get_dashboard_base_info_not_found(self):
+        adaptor = make_adaptor()
+        with patch.object(adaptor, "get_dashboard_info", return_value=None):
+            with pytest.raises(Exception, match="not found"):
+                adaptor.get_dashboard_base_info("http://localhost:8088/superset/dashboard/999/")
+
+    def test_delete_dashboard_failure(self):
+        adaptor = make_adaptor()
+        with patch.object(adaptor, "_request_json", side_effect=Exception("fail")):
+            result = adaptor.delete_dashboard(999)
+        assert result is False
+
+    def test_delete_chart_failure(self):
+        adaptor = make_adaptor()
+        with patch.object(adaptor, "_request_json", side_effect=Exception("fail")):
+            result = adaptor.delete_chart(999)
+        assert result is False
+
+    def test_delete_dataset_failure(self):
+        adaptor = make_adaptor()
+        with patch.object(adaptor, "_request_json", side_effect=Exception("fail")):
+            result = adaptor.delete_dataset(999)
+        assert result is False
+
+    def test_list_dashboards_failure_returns_empty(self):
+        adaptor = make_adaptor()
+        with patch.object(adaptor, "_request_json", side_effect=Exception("fail")):
+            results = adaptor.list_dashboards()
+        assert results == []
+
+    def test_list_bi_databases_failure_returns_empty(self):
+        adaptor = make_adaptor()
+        with patch.object(adaptor, "_request_json", side_effect=Exception("fail")):
+            dbs = adaptor.list_bi_databases()
+        assert dbs == []

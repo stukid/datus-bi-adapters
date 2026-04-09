@@ -1073,6 +1073,8 @@ class SupersetAdapter(
         try:
             form_data = chart_info.get("form_data")
             if not isinstance(form_data, dict):
+                form_data = _load_json_field(form_data)
+            if not isinstance(form_data, dict):
                 return [], None
             form_data.setdefault("url_params", {})
 

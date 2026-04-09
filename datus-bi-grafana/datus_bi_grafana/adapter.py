@@ -327,6 +327,15 @@ class GrafanaAdapter(
         datasource_uid: Optional[str] = spec.extra.get("datasource_uid")
         datasource_type: str = spec.extra.get("datasource_type", "grafana-postgresql-datasource")
 
+        # Fall back to dataset_id: look up datasource uid by numeric ID
+        if not datasource_uid and spec.dataset_id is not None:
+            try:
+                ds_data = self._request_json("GET", f"/api/datasources/{spec.dataset_id}")
+                datasource_uid = ds_data.get("uid")
+                datasource_type = ds_data.get("type", datasource_type)
+            except Exception as exc:
+                logger.warning(f"Failed to resolve dataset_id {spec.dataset_id} to datasource: {exc}")
+
         ds_ref: Optional[Dict[str, str]] = None
         if datasource_uid:
             ds_ref = {"type": datasource_type, "uid": datasource_uid}
@@ -364,8 +373,14 @@ class GrafanaAdapter(
         data = self._request_json("GET", f"/api/dashboards/uid/{dashboard_id}")
         dash = data.get("dashboard", {})
         panels = dash.get("panels", [])
-        new_id = max((p.get("id", 0) for p in panels), default=0) + 1
+        new_id = max((p.get("id", 0) for p in panels if isinstance(p.get("id"), int)), default=0) + 1
+        # Stack below existing panels to avoid overlap
+        max_y = max(
+            (p.get("gridPos", {}).get("y", 0) + p.get("gridPos", {}).get("h", 0) for p in panels),
+            default=0,
+        )
         panel = self._build_panel(spec, new_id)
+        panel["gridPos"]["y"] = max_y
         panels.append(panel)
         dash["panels"] = panels
         self._request_json(

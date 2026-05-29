@@ -200,7 +200,25 @@ jobs:
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
           git diff --check
-          git add -- ./*/pyproject.toml
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import subprocess
+          import tomllib
+          from pathlib import Path
+
+          root = Path(".")
+          workspace = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+          members = workspace.get("tool", {}).get("uv", {}).get("workspace", {}).get("members", [])
+          pyprojects = []
+          for member in members:
+              pyproject = root / str(member) / "pyproject.toml"
+              if not pyproject.is_file():
+                  raise FileNotFoundError(f"Workspace member is missing pyproject.toml: {member}")
+              pyprojects.append(str(pyproject))
+
+          subprocess.run(["git", "add", "--", *pyprojects], check=True)
+          PY
           if git diff --cached --quiet; then
             echo "${PACKAGE} already declares ${VERSION}"
           else
